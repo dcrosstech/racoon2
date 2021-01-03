@@ -263,7 +263,7 @@ ikev2_destroy_child_sa(struct ikev2_child_sa *sa)
 			policy = selector->pl;
 		if (rvrs_selector)
 			rvrs_selector->next = 0;
-		if (selector->next && rvrs_selector) {
+		if (selector && selector->next && rvrs_selector) {
 			if (rcf_get_rvrs_selector(selector->next, &(rvrs_selector->next))<0) {
 				isakmp_log(0, 0, 0, 0,
 					   PLOG_INTERR, PLOGLOC,
@@ -288,8 +288,8 @@ ikev2_destroy_child_sa(struct ikev2_child_sa *sa)
 				ra.port = 0;
 				ra.prefixlen = prefixlen;
 				ra.a.ipaddr = (struct sockaddr *)&ss;
-				if (ra.a.ipaddr->sa_family == selector->src->a.ipaddr->sa_family) {
-					if (selector && spmif_post_policy_delete(ike_spmif_socket(),
+				if (selector && ra.a.ipaddr->sa_family == selector->src->a.ipaddr->sa_family) {
+					if (spmif_post_policy_delete(ike_spmif_socket(),
 								     NULL, NULL,
 								     selector->sl_index,
 								     ike_ipsec_mode(policy),
@@ -394,10 +394,12 @@ ikev2_destroy_child_sa(struct ikev2_child_sa *sa)
 					   "failed to send delete policy request to spmd\n");
 			}
 		}
-		if (rvrs_selector->next)
-			rcf_free_selector(rvrs_selector->next);
-		if (rvrs_selector)
+		if (rvrs_selector) {
+			if (rvrs_selector->next) {
+				rcf_free_selector(rvrs_selector->next);
+			}
 			rcf_free_selector(rvrs_selector);
+		}
 	}
 	sadb_request_finish(&sa->sadb_request);
 	rc_addrpool_release_all(&sa->lease_list);
@@ -419,10 +421,11 @@ ikev2_destroy_child_sa(struct ikev2_child_sa *sa)
 		rc_vfree(sa->ts_i);
 	if (sa->ts_r)
 		rc_vfree(sa->ts_r);
-	if (sa->selector->next)
-		rcf_free_selector(sa->selector->next);
-	if (sa->selector)
+        if (sa->selector) {
+		if (sa->selector->next)
+			rcf_free_selector(sa->selector->next);
 		rcf_free_selector(sa->selector);
+	}
 	if (sa->my_proposal)
 		proplist_discard(sa->my_proposal);
 	if (sa->peer_proposal)
@@ -1327,7 +1330,7 @@ ikev2_sadb_update(struct ikev2_child_sa *child_sa,
 	 * used to do update or add.
 	 */
 	param->flags = 0;
-	if (child_sa->is_initiator)
+	if (child_sa->is_initiator && child_sa->preceding_satype == 0)
 		param->flags |= PFK_FLAG_NOPORTS;
 
 	param->wsize = ikev2_ipsec_window_size;
